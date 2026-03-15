@@ -1,0 +1,69 @@
+# ── Claude Code ───────────────────────────────────────────────────────────────
+.claude/
+CLAUDE.md.bak
+CLAUDE.md
+
+# ── Generated outputs ─────────────────────────────────────────────────────────
+checkpoints/
+logs/
+reports/
+*.csv
+*.json
+!requirements.txt
+!package.json
+!package-lock.json
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+pip-wheel-metadata/
+
+# ── Virtual environments ──────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+.env
+ENV/
+env.bak/
+venv.bak/
+
+# ── IDE / Editor ──────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ── Jupyter ───────────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ── Test / Coverage ───────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# ── Secrets ───────────────────────────────────────────────────────────────────
+.env
+.env.*
+secrets.py
+credentials.json
+
+# ── Docs build ────────────────────────────────────────────────────────────────
+docs/_build/
+docs/*.docx
+site/

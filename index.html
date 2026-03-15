@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="OllamaVision Benchmark Suite — Production-grade LLM benchmarking for NVIDIA Jetson AGX Orin edge hardware. Multi-run, category-scoped scoring, cyberpunk interactive dashboard.">
+<title>OllamaVision — Benchmark Suite</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+/* ─── ROOT TOKENS (identical to dashboard) ─── */
+:root {
+  --bg:#080c14; --bg2:#0a0e1a; --bg3:#0d1220;
+  --b1:#1a2233; --b2:#243040;
+  --neon:#39ff14; --cyan:#00f5d4; --pink:#f72585;
+  --ambr:#ffb700; --blue:#4cc9f0; --purp:#7209b7;
+  --org:#f8961e; --text:#c0ccd0; --dim:#4a6070; --grid:#1a2233;
+}
+
+/* ─── RESET ─── */
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0 }
+html { scroll-behavior:smooth }
+html,body {
+  background:var(--bg); color:var(--text);
+  font-family:'IBM Plex Mono',monospace;
+  min-height:100vh; overflow-x:hidden;
+}
+
+/* CRT scanlines (same as dashboard) */
+body::before {
+  content:''; position:fixed; inset:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.03) 2px,rgba(0,0,0,.03) 4px);
+  pointer-events:none; z-index:9998;
+}
+
+/* ─── HEADER ─── */
+.site-header {
+  position:sticky; top:0; z-index:200;
+  background:linear-gradient(180deg,#030609 0%,var(--bg) 100%);
+  border-bottom:1px solid var(--neon);
+  box-shadow:0 0 12px rgba(57,255,20,.25);
+  padding:10px 28px;
+  display:flex; justify-content:space-between; align-items:center; gap:12px;
+}
+.brand {
+  font-family:'Orbitron',monospace; font-size:1.1rem; font-weight:900;
+  color:var(--neon); text-shadow:0 0 10px rgba(57,255,20,.5); letter-spacing:.12em;
+}
+.brand span { color:var(--cyan) }
+.header-meta { font-size:.64rem; color:var(--dim); text-align:right; line-height:1.8 }
+.header-meta b { color:var(--cyan) }
+.badge {
+  display:inline-block; padding:2px 7px;
+  background:var(--ambr); color:#080c14;
+  font-size:.58rem; font-weight:700; letter-spacing:.08em;
+  margin-left:6px; vertical-align:middle;
+}
+.badge-neon { background:var(--neon) }
+.badge-cyan { background:var(--cyan) }
+.badge-pink { background:var(--pink); color:#fff }
+
+/* ─── NAV ─── */
+.nav {
+  display:flex; background:var(--bg2);
+  border-bottom:1px solid var(--b1);
+  padding:0 28px; overflow-x:auto; scrollbar-width:thin; gap:0;
+}
+.nav-btn {
+  padding:10px 16px; font-family:'IBM Plex Mono'; font-size:.68rem;
+  color:var(--dim); border:none; background:none; cursor:pointer;
+  border-bottom:2px solid transparent; transition:all .2s;
+  white-space:nowrap; letter-spacing:.05em;
+}
+.nav-btn:hover { color:var(--neon) }
+.nav-btn.active {
+  color:var(--neon); border-bottom-color:var(--neon);
+  text-shadow:0 0 8px rgba(57,255,20,.4);
+}
+
+/* ─── SECTIONS ─── */
+.section { display:none; padding:28px 28px 80px }
+.section.active { display:block }
+.sec-title {
+  font-family:'Orbitron'; font-size:.75rem; color:var(--cyan);
+  text-transform:uppercase; letter-spacing:.15em;
+  margin-bottom:18px; padding-bottom:8px;
+  border-bottom:1px solid var(--b1);
+  text-shadow:0 0 8px rgba(0,245,212,.3);
+}
+
+/* ─── GRIDS ─── */
+.g2 { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-bottom:12px }
+.g3 { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:12px }
+.g4 { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:12px }
+
+/* ─── KPI CARDS ─── */
+.kpi-row { display:grid; grid-template-columns:repeat(auto-fill,minmax(185px,1fr)); gap:12px; margin-bottom:22px }
+.kpi-card {
+  background:var(--bg3); border:1px solid var(--b1);
+  border-left:3px solid var(--neon);
+  padding:14px 16px; transition:transform .2s,box-shadow .2s; cursor:default;
+}
+.kpi-card:hover { transform:translateY(-2px); box-shadow:0 4px 20px rgba(0,0,0,.5) }
+.kpi-card.c-cyan  { border-left-color:var(--cyan) }
+.kpi-card.c-pink  { border-left-color:var(--pink) }
+.kpi-card.c-ambr  { border-left-color:var(--ambr) }
+.kpi-card.c-blue  { border-left-color:var(--blue) }
+.kpi-card.c-purp  { border-left-color:var(--purp) }
+.kpi-icon { font-size:1.1rem; margin-bottom:4px }
+.kpi-title { font-size:.58rem; color:var(--dim); text-transform:uppercase; letter-spacing:.1em; margin-bottom:6px }
+.kpi-value { font-size:.98rem; font-weight:700; margin-bottom:3px }
+.kpi-sub { font-size:.6rem; color:var(--dim) }
+
+/* ─── CHART BOX ─── */
+.chart-box {
+  background:var(--bg2); border:1px solid var(--b1);
+  padding:16px; transition:border-color .2s;
+}
+.chart-box:hover { border-color:var(--neon); box-shadow:0 0 10px rgba(57,255,20,.12) }
+.chart-title { font-size:.62rem; color:var(--neon); letter-spacing:.08em; margin-bottom:14px }
+
+/* ─── HERO ─── */
+.hero {
+  text-align:center; padding:48px 20px 40px;
+  border-bottom:1px solid var(--b1);
+  margin-bottom:28px;
+  background:radial-gradient(ellipse 80% 60% at 50% 0%,rgba(57,255,20,.04),transparent);
+}
+.hero-title {
+  font-family:'Orbitron',monospace; font-size:clamp(1.6rem,4vw,2.8rem);
+  font-weight:900; color:var(--neon);
+  text-shadow:0 0 30px rgba(57,255,20,.4),0 0 60px rgba(57,255,20,.15);
+  letter-spacing:.12em; line-height:1.1; margin-bottom:10px;
+}
+.hero-title span { color:var(--cyan) }
+.hero-sub {
+  font-size:.8rem; color:var(--dim); letter-spacing:.06em;
+  margin-bottom:6px;
+}
+.hero-tagline {
+  font-size:clamp(.7rem,.9vw,.85rem); color:var(--text); opacity:.75;
+  max-width:620px; margin:12px auto 28px; line-height:1.7;
+}
+.hero-badges { display:flex; justify-content:center; gap:8px; flex-wrap:wrap; margin-bottom:28px }
+.hero-badge {
+  padding:3px 10px; font-size:.58rem; font-weight:700;
+  letter-spacing:.08em; border:1px solid;
+}
+.hero-badge.neon  { color:var(--neon); border-color:var(--neon); background:rgba(57,255,20,.07) }
+.hero-badge.cyan  { color:var(--cyan); border-color:var(--cyan); background:rgba(0,245,212,.07) }
+.hero-badge.ambr  { color:var(--ambr); border-color:var(--ambr); background:rgba(255,183,0,.07) }
+.hero-badge.pink  { color:var(--pink); border-color:var(--pink); background:rgba(247,37,133,.07) }
+.hero-badge.purp  { color:var(--blue); border-color:var(--blue); background:rgba(76,201,240,.07) }
+.cta-row { display:flex; justify-content:center; gap:12px; flex-wrap:wrap }
+.cta-btn {
+  padding:9px 22px; font-family:'IBM Plex Mono'; font-size:.68rem;
+  font-weight:700; letter-spacing:.1em; cursor:pointer;
+  text-decoration:none; border:none; transition:all .2s;
+  display:inline-block;
+}
+.cta-btn.primary {
+  background:var(--neon); color:#080c14;
+}
+.cta-btn.primary:hover { box-shadow:0 0 18px rgba(57,255,20,.5); transform:translateY(-1px) }
+.cta-btn.secondary {
+  background:transparent; color:var(--cyan); border:1px solid var(--cyan);
+}
+.cta-btn.secondary:hover { background:rgba(0,245,212,.08); transform:translateY(-1px) }
+.cta-btn.ghost {
+  background:transparent; color:var(--dim); border:1px solid var(--b2);
+}
+.cta-btn.ghost:hover { color:var(--text); border-color:var(--dim) }
+
+/* ─── TYPING CURSOR ─── */
+.cursor {
+  display:inline-block; width:2px; height:1em;
+  background:var(--neon); vertical-align:middle;
+  animation:blink .8s step-end infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+/* ─── CSS BAR CHART ─── */
+.bar-chart { display:flex; flex-direction:column; gap:6px }
+.bar-row { display:flex; align-items:center; gap:8px }
+.bar-label { font-size:.6rem; color:var(--dim); width:90px; flex-shrink:0; text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.bar-track { flex:1; height:14px; background:var(--b1); position:relative; overflow:hidden }
+.bar-fill {
+  height:100%; position:absolute; left:0; top:0;
+  width:0; transition:width 1.2s cubic-bezier(.4,0,.2,1);
+}
+.bar-fill.animated { width:var(--w) }
+.bar-val { font-size:.58rem; color:var(--text); width:48px; flex-shrink:0; text-align:right }
+
+/* ─── SCORE BREAKDOWN ─── */
+.score-ring { position:relative; display:inline-flex; flex-direction:column; align-items:center; gap:4px }
+.score-formula {
+  background:var(--bg3); border:1px solid var(--b1);
+  padding:18px 22px;
+}
+.score-row { display:flex; align-items:center; gap:10px; margin-bottom:8px }
+.score-row:last-child { margin-bottom:0 }
+.score-op { font-size:.75rem; color:var(--dim); width:12px; flex-shrink:0 }
+.score-factor { font-size:.62rem; color:var(--text); flex:1; min-width:120px }
+.score-weight-track { width:120px; height:8px; background:var(--b1); position:relative }
+.score-weight-fill { height:100%; position:absolute; left:0; top:0; transition:width 1s ease }
+.score-pct { font-size:.6rem; width:30px; text-align:right; flex-shrink:0 }
+
+/* ─── TERMINAL BLOCK ─── */
+.terminal {
+  background:#030609; border:1px solid var(--b1);
+  border-left:3px solid var(--neon);
+  padding:14px 16px; font-size:.68rem; line-height:1.8;
+  overflow-x:auto;
+}
+.terminal .prompt { color:var(--neon) }
+.terminal .cmd    { color:var(--text) }
+.terminal .cmt    { color:var(--dim) }
+.terminal .out    { color:var(--cyan) }
+.terminal .warn   { color:var(--ambr) }
+.terminal .ok     { color:var(--neon) }
+
+/* ─── FEATURE CARDS ─── */
+.feature-card {
+  background:var(--bg2); border:1px solid var(--b1);
+  padding:18px 16px; transition:all .2s;
+}
+.feature-card:hover {
+  border-color:var(--cyan); box-shadow:0 0 10px rgba(0,245,212,.1);
+  transform:translateY(-2px);
+}
+.feature-icon { font-size:1.4rem; margin-bottom:8px }
+.feature-title { font-size:.66rem; color:var(--cyan); font-weight:700; letter-spacing:.06em; margin-bottom:6px }
+.feature-desc { font-size:.6rem; color:var(--dim); line-height:1.7 }
+
+/* ─── FLOW TREE ─── */
+.flow-tree {
+  background:#030609; border:1px solid var(--b1);
+  padding:18px 22px; font-size:.63rem; line-height:2;
+  color:var(--text);
+}
+.flow-tree .f-cyan  { color:var(--cyan) }
+.flow-tree .f-neon  { color:var(--neon) }
+.flow-tree .f-dim   { color:var(--dim) }
+.flow-tree .f-ambr  { color:var(--ambr) }
+.flow-tree .f-pink  { color:var(--pink) }
+
+/* ─── TABLES ─── */
+.tbl-wrap { overflow-x:auto; margin-bottom:18px }
+.data-table { width:100%; border-collapse:collapse; font-size:.65rem }
+.data-table th {
+  background:#0c1424; color:var(--cyan); padding:7px 10px;
+  text-align:left; border-bottom:1px solid var(--neon);
+  font-weight:500; text-transform:uppercase;
+  letter-spacing:.06em; white-space:nowrap;
+}
+.data-table td { padding:5px 10px; border-bottom:1px solid var(--b1); color:var(--text); white-space:nowrap }
+.data-table tr:hover td { background:var(--bg3) }
+.rec-pill {
+  display:inline-block; padding:1px 7px; font-size:.58rem;
+  font-weight:700; letter-spacing:.05em;
+}
+
+/* ─── ARCHITECTURE ─── */
+.arch-box {
+  background:var(--bg2); border:1px solid var(--b1);
+  padding:12px 14px; text-align:center; font-size:.6rem;
+  transition:all .2s;
+}
+.arch-box:hover { border-color:var(--neon); box-shadow:0 0 10px rgba(57,255,20,.1) }
+.arch-box .a-title { color:var(--cyan); font-size:.58rem; letter-spacing:.08em; margin-bottom:4px }
+.arch-box .a-files { color:var(--dim); line-height:1.8 }
+.arch-arrow {
+  display:flex; align-items:center; justify-content:center;
+  color:var(--neon); font-size:.7rem; padding:4px 0;
+}
+
+/* ─── TICKER ─── */
+.ticker {
+  position:fixed; bottom:0; left:0; right:0;
+  background:#030609; border-top:1px solid var(--neon);
+  padding:5px 16px; font-size:.6rem; color:var(--dim);
+  display:flex; align-items:center; gap:18px; z-index:200;
+}
+.tick-dot {
+  width:6px; height:6px; background:var(--neon);
+  border-radius:50%; animation:pulse 1.5s infinite; flex-shrink:0;
+}
+@keyframes pulse { 0%,100%{opacity:1;box-shadow:0 0 5px var(--neon)} 50%{opacity:.2;box-shadow:none} }
+.ticker-spacer { margin-left:auto; color:var(--neon) }
+
+/* ─── MISC ─── */
+.sep { border:none; border-top:1px solid var(--b1); margin:22px 0 }
+.text-block { font-size:.68rem; line-height:1.9; color:var(--text); max-width:780px; margin-bottom:16px }
+.text-block b { color:var(--cyan) }
+.text-block code { color:var(--neon); background:rgba(57,255,20,.07); padding:1px 5px }
+.inline-note { font-size:.6rem; color:var(--dim); font-style:italic }
+.neon { color:var(--neon) }
+.cyan { color:var(--cyan) }
+.ambr { color:var(--ambr) }
+.pink { color:var(--pink) }
+.dim  { color:var(--dim) }
+.mt { margin-top:18px }
+.mb { margin-bottom:18px }
+
+/* ─── SCROLLBAR ─── */
+::-webkit-scrollbar { width:4px; height:4px }
+::-webkit-scrollbar-track { background:var(--bg) }
+::-webkit-scrollbar-thumb { background:var(--b2) }
+::-webkit-scrollbar-thumb:hover { background:var(--neon) }
+
+/* ─── ANIMATIONS ─── */
+.section.active .chart-box,
+.section.active .feature-card,
+.section.active .kpi-card {
+  animation:fadeUp .3s ease-out both;
+}
+.section.active .feature-card:nth-child(2) { animation-delay:.05s }
+.section.active .feature-card:nth-child(3) { animation-delay:.10s }
+.section.active .feature-card:nth-child(4) { animation-delay:.15s }
+.section.active .feature-card:nth-child(5) { animation-delay:.20s }
+.section.active .feature-card:nth-child(6) { animation-delay:.25s }
+@keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+
+/* ─── GLOW PULSE ─── */
+@keyframes glowPulse {
+  0%,100% { text-shadow:0 0 20px rgba(57,255,20,.4),0 0 50px rgba(57,255,20,.1) }
+  50%      { text-shadow:0 0 35px rgba(57,255,20,.7),0 0 80px rgba(57,255,20,.2) }
+}
+.hero-title { animation:glowPulse 3s ease-in-out infinite }
+
+/* ─── RESPONSIVE ─── */
+@media(max-width:960px) {
+  .g2,.g3,.g4 { grid-template-columns:1fr }
+  .kpi-row    { grid-template-columns:repeat(2,1fr) }
+  .site-header,.nav,.section { padding-left:14px; padding-right:14px }
+  .hero { padding:32px 14px 28px }
+}
+@media(max-width:520px) {
+  .kpi-row { grid-template-columns:1fr }
+  .hero-title { font-size:1.4rem }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ HEADER ═══════════════════════════════════════════════════════════════ -->
+<header class="site-header">
+  <div class="brand">OLLAMA<span>VISION</span> // BENCHMARK</div>
+  <div class="header-meta">
+    <b>Edge AI · NVIDIA Jetson AGX Orin</b><br>
+    v4.0 &nbsp;|&nbsp; Multi-run &nbsp;|&nbsp; Cyberpunk Dashboard
+    <span class="badge badge-neon">OPEN SOURCE</span>
+  </div>
+</header>
+
+<!-- ═══ NAV ══════════════════════════════════════════════════════════════════ -->
+<nav class="nav">
+  <button class="nav-btn active" onclick="showTab('overview',this)">[ OVERVIEW ]</button>
+  <button class="nav-btn" onclick="showTab('features',this)">[ FEATURES ]</button>
+  <button class="nav-btn" onclick="showTab('howitworks',this)">[ HOW IT WORKS ]</button>
+  <button class="nav-btn" onclick="showTab('scoring',this)">[ SCORING ]</button>
+  <button class="nav-btn" onclick="showTab('dashboard',this)">[ DASHBOARD ]</button>
+  <button class="nav-btn" onclick="showTab('setup',this)">[ QUICK START ]</button>
+  <button class="nav-btn" onclick="showTab('docs',this)">[ DOCS ]</button>
+</nav>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- OVERVIEW                                                                  -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<section class="section active" id="tab-overview">
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-sub">PRODUCTION-GRADE LLM BENCHMARKING</div>
+    <div class="hero-title">OLLAMA<span>VISION</span><br>BENCHMARK SUITE</div>
+    <div class="hero-tagline">
+      Benchmarks every model installed in Ollama with real-time hardware telemetry,
+      multi-run statistical rigour, category-scoped scoring, and an interactive
+      cyberpunk HTML dashboard — purpose-built for <b style="color:var(--neon)">NVIDIA Jetson AGX Orin</b>.
+    </div>
+    <div class="hero-badges">
+      <span class="hero-badge neon">Python 3.10+</span>
+      <span class="hero-badge cyan">Ollama 0.1.30+</span>
+      <span class="hero-badge ambr">Jetson AGX Orin</span>
+      <span class="hero-badge pink">MIT License</span>
+      <span class="hero-badge purp">Streaming TTFT</span>
+    </div>
+    <div class="cta-row">
+      <a href="https://github.com/your-username/ollama_benchmark" class="cta-btn primary" target="_blank">⬡ VIEW ON GITHUB</a>
+      <a href="#" class="cta-btn secondary" onclick="showTab('setup',document.querySelectorAll('.nav-btn')[5]);return false">⚡ QUICK START</a>
+      <a href="docs/index.html" class="cta-btn ghost">📄 FULL DOCS</a>
+    </div>
+  </div>
+
+  <!-- KPI stats about the suite itself -->
+  <div class="kpi-row">
+    <div class="kpi-card">
+      <div class="kpi-icon">📊</div>
+      <div class="kpi-title">Interactive Charts</div>
+      <div class="kpi-value neon">16</div>
+      <div class="kpi-sub">Plotly charts · 7 dashboard tabs</div>
+    </div>
+    <div class="kpi-card c-cyan">
+      <div class="kpi-icon">🗂️</div>
+      <div class="kpi-title">Model Categories</div>
+      <div class="kpi-value cyan">6</div>
+      <div class="kpi-sub">GENERAL · CODE · MATH · REASONING · VISION · EMBEDDING</div>
+    </div>
+    <div class="kpi-card c-ambr">
+      <div class="kpi-icon">🎯</div>
+      <div class="kpi-title">Score Factors</div>
+      <div class="kpi-value ambr">6</div>
+      <div class="kpi-sub">Speed · Energy · Thermal · RAM · Stability · Load</div>
+    </div>
+    <div class="kpi-card c-pink">
+      <div class="kpi-icon">🔁</div>
+      <div class="kpi-title">Runs per Model</div>
+      <div class="kpi-value pink">3+1</div>
+      <div class="kpi-sub">3 measured + 1 warmup · prompt rotation</div>
+    </div>
+    <div class="kpi-card c-blue">
+      <div class="kpi-icon">⚡</div>
+      <div class="kpi-title">Refresh Rate</div>
+      <div class="kpi-value" style="color:var(--blue)">2 Hz</div>
+      <div class="kpi-sub">Rich Live terminal · 6 panels</div>
+    </div>
+    <div class="kpi-card c-purp">
+      <div class="kpi-icon">🖥️</div>
+      <div class="kpi-title">HW Telemetry</div>
+      <div class="kpi-value" style="color:var(--purp)">1 Hz</div>
+      <div class="kpi-sub">jtop · power rails · temps · GPU · RAM</div>
+    </div>
+  </div>
+
+  <!-- Mock TPS bar chart -->
+  <div class="g2">
+    <div class="chart-box">
+      <div class="chart-title">⚡ DEMO — TOKENS / SECOND BY MODEL (mock data)</div>
+      <div class="bar-chart" id="demo-chart">
+        <div class="bar-row"><span class="bar-label">qwen2.5:3b</span>     <div class="bar-track"><div class="bar-fill" style="--w:92%;background:var(--neon)"></div></div>   <span class="bar-val neon">92.4</span></div>
+        <div class="bar-row"><span class="bar-label">phi4-mini:3.8b</span> <div class="bar-track"><div class="bar-fill" style="--w:78%;background:var(--neon)"></div></div>   <span class="bar-val neon">78.1</span></div>
+        <div class="bar-row"><span class="bar-label">llama3.2:3b</span>    <div class="bar-track"><div class="bar-fill" style="--w:71%;background:var(--cyan)"></div></div>    <span class="bar-val cyan">71.2</span></div>
+        <div class="bar-row"><span class="bar-label">mistral:7b</span>     <div class="bar-track"><div class="bar-fill" style="--w:55%;background:var(--cyan)"></div></div>    <span class="bar-val cyan">55.3</span></div>
+        <div class="bar-row"><span class="bar-label">qwen2.5:7b</span>     <div class="bar-track"><div class="bar-fill" style="--w:49%;background:var(--cyan)"></div></div>    <span class="bar-val cyan">49.8</span></div>
+        <div class="bar-row"><span class="bar-label">phi4:14b</span>       <div class="bar-track"><div class="bar-fill" style="--w:35%;background:var(--ambr)"></div></div>    <span class="bar-val ambr">35.1</span></div>
+        <div class="bar-row"><span class="bar-label">llama3.1:8b</span>    <div class="bar-track"><div class="bar-fill" style="--w:28%;background:var(--ambr)"></div></div>    <span class="bar-val ambr">28.4</span></div>
+        <div class="bar-row"><span class="bar-label">deepseek-r1:14b</span><div class="bar-track"><div class="bar-fill" style="--w:20%;background:var(--org)"></div></div>     <span class="bar-val" style="color:var(--org)">20.1</span></div>
+        <div class="bar-row"><span class="bar-label">qwen2.5:32b</span>    <div class="bar-track"><div class="bar-fill" style="--w:13%;background:var(--pink)"></div></div>    <span class="bar-val pink">13.5</span></div>
+        <div class="bar-row"><span class="bar-label">llama3.3:70b</span>   <div class="bar-track"><div class="bar-fill" style="--w:5%;background:var(--pink)"></div></div>     <span class="bar-val pink">4.8</span></div>
+      </div>
+      <div class="inline-note mt" style="display:block;margin-top:12px">▲ Simulated data for illustration · Jetson AGX Orin 64 GB</div>
+    </div>
+
+    <div class="chart-box">
+      <div class="chart-title">📋 RECOMMENDATION DISTRIBUTION (mock)</div>
+      <div class="bar-chart" style="margin-top:8px">
+        <div class="bar-row">
+          <span class="bar-label"><span class="rec-pill" style="color:var(--neon);border:1px solid var(--neon)">KEEP★</span></span>
+          <div class="bar-track"><div class="bar-fill" style="--w:28%;background:var(--neon)"></div></div>
+          <span class="bar-val neon">3</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label"><span class="rec-pill" style="color:var(--cyan);border:1px solid var(--cyan)">KEEP</span></span>
+          <div class="bar-track"><div class="bar-fill" style="--w:46%;background:var(--cyan)"></div></div>
+          <span class="bar-val cyan">5</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label"><span class="rec-pill" style="color:var(--ambr);border:1px solid var(--ambr)">OPTIONAL</span></span>
+          <div class="bar-track"><div class="bar-fill" style="--w:18%;background:var(--ambr)"></div></div>
+          <span class="bar-val ambr">2</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label"><span class="rec-pill" style="color:var(--org);border:1px solid var(--org)">REVIEW</span></span>
+          <div class="bar-track"><div class="bar-fill" style="--w:9%;background:var(--org)"></div></div>
+          <span class="bar-val" style="color:var(--org)">1</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label"><span class="rec-pill" style="color:var(--pink);border:1px solid var(--pink)">REMOVE</span></span>
+          <div class="bar-track"><div class="bar-fill" style="--w:9%;background:var(--pink)"></div></div>
+          <span class="bar-val pink">1</span>
+        </div>
+      </div>
+      <hr class="sep">
+      <div class="chart-title" style="margin-top:8px">🎯 WHAT IS A GOOD TPS ON JETSON AGX ORIN?</div>
+      <table class="data-table">
+        <thead><tr><th>TPS Range</th><th>Rating</th><th>Typical Size</th></tr></thead>
+        <tbody>
+          <tr><td class="neon">&gt; 50 tok/s</td><td class="neon">Excellent</td><td>1–3B models</td></tr>
+          <tr><td class="cyan">25–50 tok/s</td><td class="cyan">Very good</td><td>7B models</td></tr>
+          <tr><td class="ambr">15–25 tok/s</td><td class="ambr">Good</td><td>13–14B models</td></tr>
+          <tr><td class="dim">8–15 tok/s</td><td class="dim">Acceptable</td><td>27B+ models</td></tr>
+          <tr><td class="pink">&lt; 8 tok/s</td><td class="pink">Review</td><td>Very large / REASONING</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Problem statement -->
+  <div class="chart-box mt">
+    <div class="chart-title">▸ THE PROBLEM WITH SINGLE-RUN BENCHMARKS</div>
+    <p class="text-block">
+      Single-run, single-prompt benchmarks are <b>misleading</b>. A model can appear slow on a generic prompt yet be excellent in its specific domain. Ollama's KV-cache means the second run on the same prompt is <b>artificially faster</b> than the first. And comparing a reasoning model (optimized for quality) directly against a general model (optimized for speed) produces unfair results.
+    </p>
+    <p class="text-block">
+      <b>OllamaVision</b> solves this by running <code>NUM_RUNS=3</code> passes with <b>different prompts per run</b>, comparing each model only against <b>models in the same category</b>, and producing a multi-dimensional score that accounts for speed, energy efficiency, thermal behaviour, RAM pressure, result stability, and load time.
+    </p>
+  </div>
+
+</section>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- FEATURES                                                                  -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<section class="section" id="tab-features">
+  <div class="sec-title">▸ COMPLETE FEATURE SET</div>
+
+  <div class="g3">
+    <div class="feature-card">
+      <div class="feature-icon">🔁</div>
+      <div class="feature-title">Multi-Run with Prompt Rotation</div>
+      <div class="feature-desc">3 measured runs per model, each using a different prompt from a curated set. Eliminates KV-cache bias. 1 warmup run precedes measurement to stabilize GPU clock speeds.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📊</div>
+      <div class="feature-title">Category-Scoped Scoring</div>
+      <div class="feature-desc">Models are ranked by TPS percentile within their own category — GENERAL, CODE, MATH, REASONING, VISION, EMBEDDING. A slow reasoning model can still score highly if it outperforms other reasoning models.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🎯</div>
+      <div class="feature-title">6-Factor Efficiency Score</div>
+      <div class="feature-desc">Weighted score 0–100 combining speed (35%), energy efficiency (25%), thermal penalty (15%), RAM penalty (10%), inter-run stability (10%), and model load speed (5%).</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">⚡</div>
+      <div class="feature-title">Streaming TTFT Measurement</div>
+      <div class="feature-desc">Default streaming mode (<code>stream=true</code>) measures Time-To-First-Token precisely. TTFT is stored in-memory and exported to the JSON summary. Falls back to blocking mode on timeout.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🌐</div>
+      <div class="feature-title">Cyberpunk Interactive Dashboard</div>
+      <div class="feature-desc">Single self-contained HTML file with 16 Plotly charts across 7 tabs. No server required — open directly in any browser. IBM Plex Mono + Orbitron typography.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🖥️</div>
+      <div class="feature-title">Real-Time Terminal Dashboard</div>
+      <div class="feature-desc">Rich Live 6-panel terminal layout refreshed at 2 Hz during benchmark. Shows progress, live hardware telemetry, running stats, and a scrollable results table.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🔋</div>
+      <div class="feature-title">Per-Rail Power Monitoring</div>
+      <div class="feature-desc">Reads Jetson INA3221 sensors: VDD_GPU_SOC, VDD_CPU_CV, VIN_SYS_5V0. Computes tokens per watt for each model. Hardware window is averaged over the actual inference interval.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">💾</div>
+      <div class="feature-title">Atomic Checkpoint / Resume</div>
+      <div class="feature-desc">Checkpoint writes go through <code>.tmp</code> → rename atomically. If the process is killed mid-benchmark, just re-run — it picks up exactly where it left off.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🔍</div>
+      <div class="feature-title">Dynamic Model Discovery</div>
+      <div class="feature-desc">Discovers all installed models via <code>/api/tags</code> with fallback to <code>ollama list</code>. No hardcoded model lists. Category is auto-detected from name heuristics or overridden in config.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🧊</div>
+      <div class="feature-title">Adaptive Cooldown</div>
+      <div class="feature-desc">Before each model, checks the last 30 seconds of GPU temperature history. Only waits if the GPU is above the cooldown threshold. Skipped entirely if already cool.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🔬</div>
+      <div class="feature-title">Simulation Mode</div>
+      <div class="feature-desc">Full pipeline runs on any Linux machine with <code>--simulate</code>. Generates realistic synthetic telemetry (Gaussian noise over Jetson AGX Orin baselines) so the entire system can be developed and tested without hardware.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🎛️</div>
+      <div class="feature-title">Targeted Benchmarking</div>
+      <div class="feature-desc">Filter by category (<code>--filter CODE,MATH</code>) or by model name substring (<code>--models qwen,phi4</code>). Override runs and timeout per invocation without touching config.</div>
+    </div>
+  </div>
+
+  <hr class="sep">
+  <div class="sec-title">▸ HARDWARE CAPABILITIES</div>
+
+  <div class="g2">
+    <div class="chart-box">
+      <div class="chart-title">🌡 SENSORS MONITORED DURING INFERENCE</div>
+      <table class="data-table">
+        <thead><tr><th>Metric</th><th>Source</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td class="neon">GPU Temperature</td><td>jtop Temp GPU</td><td>Primary thermal indicator</td></tr>
+          <tr><td>CPU Temperature</td><td>jtop Temp CPU</td><td>CPU cluster</td></tr>
+          <tr><td>SOC Temperature</td><td>jtop Temp SOC0</td><td>System-on-chip</td></tr>
+          <tr><td>TJ (Junction)</td><td>jtop Temp tj</td><td>Max thermal ceiling</td></tr>
+          <tr><td class="cyan">VDD_GPU_SOC</td><td>INA3221</td><td>GPU + SoC power rail (mW)</td></tr>
+          <tr><td class="cyan">VDD_CPU_CV</td><td>INA3221</td><td>CPU + CV accelerator rail (mW)</td></tr>
+          <tr><td class="cyan">VIN_SYS_5V0</td><td>INA3221</td><td>5V system bus (mW)</td></tr>
+          <tr><td class="ambr">GPU Load</td><td>jtop GPU</td><td>Utilization %</td></tr>
+          <tr><td class="ambr">GPU Frequency</td><td>jtop GPU.frq</td><td>MHz — detects throttling</td></tr>
+          <tr><td>RAM Used</td><td>jtop RAM</td><td>Unified memory (MB)</td></tr>
+          <tr><td>CPU Avg Load</td><td>jtop cpu</td><td>Average across all cores</td></tr>
+          <tr><td class="dim">Fan Speed</td><td>jtop fan</td><td>RPM</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="chart-box">
+      <div class="chart-title">🏷️ MODEL CATEGORY AUTO-DETECTION</div>
+      <table class="data-table">
+        <thead><tr><th>Keywords in Name</th><th>Category</th><th>Min TPS</th></tr></thead>
+        <tbody>
+          <tr><td class="dim">embed, embedding, nomic</td><td><span class="rec-pill" style="color:var(--dim);border:1px solid var(--dim)">EMBEDDING</span></td><td class="dim">N/A</td></tr>
+          <tr><td>vision, vl, llava, moondream, minicpm-v</td><td><span class="rec-pill" style="color:var(--purp);border:1px solid var(--purp)">VISION</span></td><td>3 tok/s</td></tr>
+          <tr><td>coder, code, codestral, deepseek-coder</td><td><span class="rec-pill" style="color:var(--neon);border:1px solid var(--neon)">CODE</span></td><td class="neon">8 tok/s</td></tr>
+          <tr><td>math, deepseek-math, qwen-math</td><td><span class="rec-pill" style="color:var(--ambr);border:1px solid var(--ambr)">MATH</span></td><td class="ambr">5 tok/s</td></tr>
+          <tr><td>r1, reasoning, think, thinker, qwq</td><td><span class="rec-pill" style="color:var(--pink);border:1px solid var(--pink)">REASONING</span></td><td class="pink">4 tok/s</td></tr>
+          <tr><td class="cyan"><em>(anything else)</em></td><td><span class="rec-pill" style="color:var(--cyan);border:1px solid var(--cyan)">GENERAL</span></td><td class="cyan">10 tok/s</td></tr>
+        </tbody>
+      </table>
+      <div class="inline-note mt" style="display:block;margin-top:10px">Override any model's category in <code>MODEL_CATEGORY_OVERRIDE</code> inside <code>config.py</code></div>
+    </div>
+  </div>
+
+</section>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- HOW IT WORKS                                                              -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<section class="section" id="tab-howitworks">
+  <div class="sec-title">▸ EXECUTION FLOW</div>
+
+  <div class="flow-tree">
+<pre><span class="f-cyan">main.py</span>
+  └── <span class="f-neon">BenchmarkController.run()</span>
+        ├── <span class="f-ambr">_pre_flight_check()</span>      <span class="f-dim">← verify Ollama alive, jtop, root</span>
+        ├── <span class="f-ambr">_discover_models()</span>       <span class="f-dim">← /api/tags · fallback 'ollama list'</span>
+        ├── <span class="f-ambr">_apply_filters()</span>         <span class="f-dim">← --filter CATEGORY · --models TERM</span>
+        ├── <span class="f-ambr">_manage_checkpoint()</span>     <span class="f-dim">← load / create / resume atomic JSON</span>
+        ├── <span class="f-cyan">HardwareMonitor.start()</span>  <span class="f-dim">← daemon thread · 1 Hz jtop sampling</span>
+        ├── <span class="f-cyan">TerminalView.start()</span>     <span class="f-dim">← Rich Live 6-panel · 2 Hz refresh</span>
+        │
+        └── <span class="f-neon">_benchmark_loop()</span>
+              ├── <span class="f-pink">[per each model]</span>
+              │     ├── <span class="f-ambr">_do_cooldown()</span>           <span class="f-dim">← wait GPU ≤ COOLDOWN_TEMP (50°C)</span>
+              │     ├── <span class="f-ambr">_do_memory_clean()</span>       <span class="f-dim">← drop_caches · unload_all models</span>
+              │     └── <span class="f-neon">_run_model_multi()</span>
+              │           ├── warmup run               <span class="f-dim">← not counted in stats</span>
+              │           ├── <span class="f-cyan">run 1</span> — prompt_A        <span class="f-dim">← hw_start_ts → hw_end_ts window</span>
+              │           ├── <span class="f-cyan">run 2</span> — prompt_B        <span class="f-dim">← RunStat {tps, latency, hw_avg}</span>
+              │           └── <span class="f-cyan">run 3</span> — prompt_C
+              │
+              ├── <span class="f-ambr">StatsAggregator.aggregate_runs()</span>   <span class="f-dim">← mean · median · stdev · CV</span>
+              ├── <span class="f-ambr">calculate_derived()</span>               <span class="f-dim">← preliminary efficiency score</span>
+              ├── <span class="f-ambr">CSVManager.append()</span>               <span class="f-dim">← atomic CSV row write</span>
+              └── <span class="f-ambr">CheckpointManager.mark_completed()</span>
+              │
+        └── <span class="f-neon">_recalculate_scores_final()</span>   <span class="f-dim">← recompute percentiles · full dataset</span>
+              ├── <span class="f-ambr">_rewrite_csv()</span>              <span class="f-dim">← replace preliminary scores in CSV</span>
+              ├── <span class="f-ambr">_export_json_summary()</span>      <span class="f-dim">← TTFT · per-model hw averages · filters</span>
+              └── <span class="f-neon">DashboardView.generate()</span>   <span class="f-dim">← 16 charts · 7 tabs · single HTML file</span></pre>
+  </div>
+
+  <hr class="sep">
+  <div class="sec-title">▸ ARCHITECTURE — MVC</div>
+
+  <div class="chart-box mb">
+    <div class="chart-title">▸ MODULE MAP</div>
+    <div class="g3" style="margin-top:12px">
+      <div>
+        <div class="arch-box" style="border-color:var(--ambr)">
+          <div class="a-title" style="color:var(--ambr)">CONFIG</div>
+          <div class="a-files">config.py<br><span class="dim">single source of truth</span><br>all constants + prompts<br>scoring weights · paths</div>
+        </div>
+      </div>
+      <div>
+        <div class="arch-box" style="border-color:var(--neon)">
+          <div class="a-title">CONTROLLER</div>
+          <div class="a-files">benchmark_controller.py<br><span class="dim">MVC orchestrator</span><br>pre-flight · loop · scoring<br>checkpoint · dashboard gen</div>
+        </div>
+        <div class="arch-arrow">↕</div>
+        <div class="arch-box" style="border-color:var(--dim)">
+          <div class="a-title" style="color:var(--dim)">UTILS</div>
+          <div class="a-files">checkpoint.py<br>logger.py<br>system_utils.py</div>
+        </div>
+      </div>
+      <div>
+        <div class="arch-box" style="border-color:var(--cyan)">
+          <div class="a-title">MODELS</div>
+          <div class="a-files">data_model.py<br>ollama_model.py<br>hardware_model.py</div>
+        </div>
+        <div class="arch-arrow">↕</div>
+        <div class="arch-box" style="border-color:var(--pink)">
+          <div class="a-title" style="color:var(--pink)">VIEWS</div>
+          <div class="a-files">terminal_view.py<br><span class="dim">(Rich Live · 2Hz)</span><br>dashboard_view.py<br><span class="dim">(Plotly HTML)</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="g2">
+    <div class="chart-box">
+      <div class="chart-title">📡 OLLAMA API ENDPOINTS USED</div>
+      <table class="data-table">
+        <thead><tr><th>Method</th><th>Endpoint</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td class="dim">GET</td><td class="neon">/api/tags</td><td>List installed models</td></tr>
+          <tr><td class="dim">POST</td><td>/api/show</td><td>Model metadata</td></tr>
+          <tr><td class="dim">GET</td><td>/api/ps</td><td>Running models</td></tr>
+          <tr><td class="dim">POST</td><td class="cyan">/api/generate</td><td>Text / vision inference</td></tr>
+          <tr><td class="dim">POST</td><td class="ambr">/api/embed</td><td>Embeddings (Ollama ≥0.4)</td></tr>
+          <tr><td class="dim">POST</td><td class="dim">/api/embeddings</td><td>Embeddings fallback (&lt;0.4)</td></tr>
+          <tr><td class="dim">POST</td><td class="pink">/api/generate keep_alive=0</td><td>Unload model from VRAM</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="chart-box">
+      <div class="chart-title">🔄 RETRY &amp; FAULT TOLERANCE</div>
+      <table class="data-table">
+        <thead><tr><th>Scenario</th><th>Behaviour</th></tr></thead>
+        <tbody>
+          <tr><td class="neon">ConnectionError</td><td>Retry ×2 with 1s/2s backoff</td></tr>
+          <tr><td class="pink">Timeout</td><td>Fail immediately (no retry)</td></tr>
+          <tr><td class="pink">HTTP 4xx</td><td>Fail immediately (deterministic)</td></tr>
+          <tr><td class="ambr">Stream failure</td><td>Fallback to blocking mode</td></tr>
+          <tr><td class="cyan">SIGINT / SIGTERM</td><td>Save checkpoint → gen dashboard → exit</td></tr>
+          <tr><td>Corrupt checkpoint</td><td>Start fresh (auto-detected)</td></tr>
+          <tr><td>jtop unavailable</td><td>Activate simulation mode</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</section>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- SCORING                                                                   -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<section class="section" id="tab-scoring">
+  <div class="sec-title">▸ EFFICIENCY SCORE FORMULA</div>
+
+  <div class="g2">
+    <div class="score-formula">
+      <div class="chart-title" style="margin-bottom:18px">SCORE = (0–100 for each factor, then weighted sum)</div>
+
+      <div class="score-row">
+        <span class="score-op neon">+</span>
+        <span class="score-factor neon"><b>Speed</b> — TPS percentile within category</span>
+        <div class="score-weight-track"><div class="score-weight-fill" id="sw1" style="background:var(--neon);width:0"></div></div>
+        <span class="score-pct neon">35%</span>
+      </div>
+      <div class="score-row">
+        <span class="score-op cyan">+</span>
+        <span class="score-factor cyan"><b>Energy</b> — tokens per watt (ref: 4 tok/W)</span>
+        <div class="score-weight-track"><div class="score-weight-fill" id="sw2" style="background:var(--cyan);width:0"></div></div>
+        <span class="score-pct cyan">25%</span>
+      </div>
+      <div class="score-row">
+        <span class="score-op pink">−</span>
+        <span class="score-factor pink"><b>Thermal penalty</b> — GPU temp (ok below 62°C)</span>
+        <div class="score-weight-track"><div class="score-weight-fill" id="sw3" style="background:var(--pink);width:0"></div></div>
+        <span class="score-pct pink">15%</span>
+      </div>
+      <div class="score-row">
+        <span class="score-op ambr">−</span>
+        <span class="score-factor ambr"><b>RAM penalty</b> — RAM usage (ok below 12 GB)</span>
+        <div class="score-weight-track"><div class="score-weight-fill" id="sw4" style="background:var(--ambr);width:0"></div></div>
+        <span class="score-pct ambr">10%</span>
+      </div>
+      <div class="score-row">
+        <span class="score-op" style="color:var(--blue)">+</span>
+        <span class="score-factor" style="color:var(--blue)"><b>Stability</b> — 1/CV inter-run (CV ≤ 3% → max)</span>
+        <div class="score-weight-track"><div class="score-weight-fill" id="sw5" style="background:var(--blue);width:0"></div></div>
+        <span class="score-pct" style="color:var(--blue)">10%</span>
+      </div>
+      <div class="score-row">
+        <span class="score-op dim">+</span>
+        <span class="score-factor dim"><b>Load speed</b> — model load from disk (ok &lt;30s)</span>
+        <div class="score-weight-track"><div class="score-weight-fill" id="sw6" style="background:var(--dim);width:0"></div></div>
+        <span class="score-pct dim"> 5%</span>
+      </div>
+    </div>
+
+    <div class="chart-box">
+      <div class="chart-title">📐 SCORE BANDS &amp; RECOMMENDATIONS</div>
+      <div class="bar-chart" style="margin-top:8px">
+        <div class="bar-row">
+          <span class="bar-label neon">KEEP★ ≥ 68</span>
+          <div class="bar-track"><div class="bar-fill" style="--w:68%;background:var(--neon)"></div></div>
+          <span class="bar-val neon">68–100</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label cyan">KEEP ≥ 42</span>
+          <div class="bar-track"><div class="bar-fill" style="--w:42%;background:var(--cyan)"></div></div>
+          <span class="bar-val cyan">42–67</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label ambr">OPTIONAL ≥ 22</span>
+          <div class="bar-track"><div class="bar-fill" style="--w:22%;background:var(--ambr)"></div></div>
+          <span class="bar-val ambr">22–41</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label" style="color:var(--org)">REVIEW &lt;22</span>
+          <div class="bar-track"><div class="bar-fill" style="--w:12%;background:var(--org)"></div></div>
+          <span class="bar-val" style="color:var(--org)">0–21</span>
+        </div>
+      </div>
+      <hr class="sep">
+      <div class="chart-title">📦 INTER-RUN STABILITY LABELS</div>
+      <div class="bar-chart" style="margin-top:8px">
+        <div class="bar-row"><span class="bar-label neon">STABLE ≤3%</span>   <div class="bar-track"><div class="bar-fill" style="--w:15%;background:var(--neon)"></div></div><span class="bar-val neon">CV≤0.03</span></div>
+        <div class="bar-row"><span class="bar-label cyan">GOOD ≤8%</span>    <div class="bar-track"><div class="bar-fill" style="--w:40%;background:var(--cyan)"></div></div><span class="bar-val cyan">CV≤0.08</span></div>
+        <div class="bar-row"><span class="bar-label ambr">VARIABLE ≤15%</span><div class="bar-track"><div class="bar-fill" style="--w:75%;background:var(--ambr)"></div></div><span class="bar-val ambr">CV≤0.15</span></div>
+        <div class="bar-row"><span class="bar-label pink">UNSTABLE &gt;15%</span><div class="bar-track"><div class="bar-fill" style="--w:100%;background:var(--pink)"></div></div><span class="bar-val pink">CV&gt;0.15</span></div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="sep">
+
+  <div class="chart-box">
+    <div class="chart-title">📋 RECOMMENDATION DECISION TREE</div>
+    <div class="flow-tree" style="margin-top:10px">
+<pre><span class="f-dim">category == EMBEDDING?</span>    → <span class="rec-pill" style="color:var(--dim);border:1px solid var(--dim)">EMBEDDING</span>   <span class="f-dim">(TPS doesn't apply)</span>
+<span class="f-dim">benchmark failed?</span>         → <span class="rec-pill" style="color:#ff1010;border:1px solid #ff1010">ERROR</span>        <span class="f-dim">(retry or check Ollama)</span>
+<span class="f-dim">score ≥ 68?</span>               → <span class="rec-pill" style="color:var(--neon);border:1px solid var(--neon)">KEEP★</span>        <span class="f-dim">(excellent — deploy with confidence)</span>
+<span class="f-dim">score ≥ 42?</span>               → <span class="rec-pill" style="color:var(--cyan);border:1px solid var(--cyan)">KEEP</span>         <span class="f-dim">(good — worth keeping)</span>
+<span class="f-dim">score ≥ 22?</span>               → <span class="rec-pill" style="color:var(--ambr);border:1px solid var(--ambr)">OPTIONAL</span>     <span class="f-dim">(ok if use case justifies it)</span>
+<span class="f-dim">TPS &lt; cat_min AND RAM &gt; 28GB?</span> → <span class="rec-pill" style="color:var(--pink);border:1px solid var(--pink)">REMOVE</span>   <span class="f-dim">(slow + memory-hungry → ollama rm)</span>
+<span class="f-dim">otherwise</span>                 → <span class="rec-pill" style="color:var(--org);border:1px solid var(--org)">REVIEW</span>       <span class="f-dim">(below threshold — evaluate manually)</span></pre>
+    </div>
+    <p class="text-block" style="margin-top:14px">
+      <b>Note:</b> <code>REVIEW</code> does not mean the model is bad — only that it was slower than expected for its category under benchmark conditions. It may excel in real usage where quality matters more than raw speed.
+    </p>
+  </div>
+
+</section>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- DASHBOARD                                                                 -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<section class="section" id="tab-dashboard">
+  <div class="sec-title">▸ INTERACTIVE HTML DASHBOARD</div>
+
+  <p class="text-block">
+    The benchmark generates a <b>single self-contained HTML file</b> (~1 MB) at <code>reports/dashboard.html</code>. No server required — open directly in any browser. All Plotly charts are embedded with CDN. IBM Plex Mono + Orbitron fonts, same cyberpunk palette as this page.
+  </p>
+
+  <!-- Mock dashboard preview using the same chrome as the real dashboard -->
+  <div style="border:1px solid var(--neon);box-shadow:0 0 20px rgba(57,255,20,.1);margin-bottom:18px">
+    <!-- Mini header -->
+    <div style="background:linear-gradient(180deg,#030609,var(--bg));border-bottom:1px solid var(--neon);padding:7px 16px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-family:'Orbitron';font-size:.7rem;color:var(--neon);font-weight:900;letter-spacing:.1em">OLLAMA<span style="color:var(--cyan)">VISION</span> // BENCHMARK</span>
+      <span style="font-size:.55rem;color:var(--dim)"><b style="color:var(--cyan)">OllamaVision Benchmark Suite</b> v4.0 &nbsp;|&nbsp; Generated: <b style="color:var(--cyan)">2026-03-14 11:23:45</b></span>
+    </div>
+    <!-- Mini nav -->
+    <div style="background:var(--bg2);border-bottom:1px solid var(--b1);padding:0 16px;display:flex;gap:0;overflow-x:auto">
+      <span style="padding:7px 12px;font-size:.6rem;color:var(--neon);border-bottom:2px solid var(--neon)">[ OVERVIEW ]</span>
+      <span style="padding:7px 12px;font-size:.6rem;color:var(--dim)">[ PERFORMANCE ]</span>
+      <span style="padding:7px 12px;font-size:.6rem;color:var(--dim)">[ BY CATEGORY ]</span>
+      <span style="padding:7px 12px;font-size:.6rem;color:var(--dim)">[ THERMAL &amp; POWER ]</span>
+      <span style="padding:7px 12px;font-size:.6rem;color:var(--dim)">[ STABILITY ]</span>
+      <span style="padding:7px 12px;font-size:.6rem;color:var(--dim)">[ DECISIONS ]</span>
+      <span style="padding:7px 12px;font-size:.6rem;color:var(--dim)">[ COMPLETE DATA ]</span>
+    </div>
+    <!-- Mini KPI row -->
+    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;padding:12px 16px;background:var(--bg)">
+      <div style="background:var(--bg3);border:1px solid var(--b1);border-left:3px solid var(--neon);padding:8px 10px">
+        <div style="font-size:.45rem;color:var(--dim);text-transform:uppercase;letter-spacing:.08em">FASTEST</div>
+        <div style="font-size:.7rem;font-weight:700;color:var(--neon);margin:2px 0">qwen2.5:3b</div>
+        <div style="font-size:.5rem;color:var(--dim)">92.4 tok/s</div>
+      </div>
+      <div style="background:var(--bg3);border:1px solid var(--b1);border-left:3px solid var(--cyan);padding:8px 10px">
+        <div style="font-size:.45rem;color:var(--dim);text-transform:uppercase;letter-spacing:.08em">BEST SCORE</div>
+        <div style="font-size:.7rem;font-weight:700;color:var(--cyan);margin:2px 0">phi4-mini:3.8b</div>
+        <div style="font-size:.5rem;color:var(--dim)">Score 84/100</div>
+      </div>
+      <div style="background:var(--bg3);border:1px solid var(--b1);border-left:3px solid var(--ambr);padding:8px 10px">
+        <div style="font-size:.45rem;color:var(--dim);text-transform:uppercase;letter-spacing:.08em">MOST EFFICIENT</div>
+        <div style="font-size:.7rem;font-weight:700;color:var(--ambr);margin:2px 0">mistral:7b</div>
+        <div style="font-size:.5rem;color:var(--dim)">7.3 tok/W</div>
+      </div>
+      <div style="background:var(--bg3);border:1px solid var(--b1);border-left:3px solid var(--org);padding:8px 10px">
+        <div style="font-size:.45rem;color:var(--dim);text-transform:uppercase;letter-spacing:.08em">AVG POWER</div>
+        <div style="font-size:.7rem;font-weight:700;color:var(--org);margin:2px 0">18.4 W</div>
+        <div style="font-size:.5rem;color:var(--dim)">10 models benchmarked</div>
+      </div>
+      <div style="background:var(--bg3);border:1px solid var(--b1);border-left:3px solid var(--pink);padding:8px 10px">
+        <div style="font-size:.45rem;color:var(--dim);text-transform:uppercase;letter-spacing:.08em">AVG GPU TEMP</div>
+        <div style="font-size:.7rem;font-weight:700;color:var(--pink);margin:2px 0">54.2°C</div>
+        <div style="font-size:.5rem;color:var(--dim)">during inference</div>
+      </div>
+      <div style="background:var(--bg3);border:1px solid var(--b1);border-left:3px solid var(--purp);padding:8px 10px">
+        <div style="font-size:.45rem;color:var(--dim);text-transform:uppercase;letter-spacing:.08em">KEEP / REMOVE</div>
+        <div style="font-size:.7rem;font-weight:700;color:var(--purp);margin:2px 0">8 keep</div>
+        <div style="font-size:.5rem;color:var(--dim)">1 review | 1 remove</div>
+      </div>
+    </div>
+    <!-- Mini ticker -->
+    <div style="background:#030609;border-top:1px solid var(--b1);padding:4px 16px;font-size:.5rem;color:var(--dim);display:flex;gap:16px;align-items:center">
+      <div style="width:5px;height:5px;background:var(--neon);border-radius:50%;animation:pulse 1.5s infinite;flex-shrink:0"></div>
+      <span>OllamaVision Benchmark Suite v4.0</span>
+      <span>Generated: 2026-03-14 11:23:45</span>
+      <span>Total models: 11</span>
+      <span>3 runs/model</span>
+      <span style="margin-left:auto;color:var(--neon)">Edge AI Lab</span>
+    </div>
+  </div>
+
+  <div class="sec-title">▸ DASHBOARD TAB GUIDE</div>
+
+  <div class="g2">
+    <div class="chart-box">
+      <div class="chart-title">[ OVERVIEW ] — at a glance</div>
+      <p class="feature-desc" style="margin-bottom:10px">6 KPI cards (fastest, best score, most efficient, avg power, avg GPU temp, keep/remove counts). TPS bar with ±1σ error bars. Recommendation donut. TPS vs RAM scatter (dot size = power). Efficiency score horizontal bar.</p>
+    </div>
+    <div class="chart-box">
+      <div class="chart-title">[ PERFORMANCE ] — speed analysis</div>
+      <p class="feature-desc" style="margin-bottom:10px">Full-width TPS chart. Efficiency score + tokens/watt. Latency breakdown (model load vs inference stacked bar). Load-time vs inference-time scatter — detects models that don't fit in VRAM.</p>
+    </div>
+    <div class="chart-box">
+      <div class="chart-title">[ BY CATEGORY ] — strategic view</div>
+      <p class="feature-desc" style="margin-bottom:10px">6 sub-charts: avg TPS, max TPS, avg score, tok/W, avg GPU temp, avg power — all by category. Best-model-per-category table. Multidimensional radar chart (speed · efficiency · thermal · GPU% · eco).</p>
+    </div>
+    <div class="chart-box">
+      <div class="chart-title">[ THERMAL &amp; POWER ] — hardware</div>
+      <p class="feature-desc" style="margin-bottom:10px">Per-sensor temperatures (GPU/CPU/SOC/TJ) with 75°C and 85°C warning lines. Stacked power-rail bar (GPU+SOC / CPU+CV / SYS5V0). Dual-axis GPU load vs frequency. RAM usage heatmap with 28 GB limit line.</p>
+    </div>
+    <div class="chart-box">
+      <div class="chart-title">[ STABILITY ] — multi-run stats</div>
+      <p class="feature-desc" style="margin-bottom:10px">CV% bar per model with STABLE/GOOD/VARIABLE/UNSTABLE threshold lines. Box-plot of individual run TPS distributions per model — a wide box means inconsistent results across the 3 runs.</p>
+    </div>
+    <div class="chart-box">
+      <div class="chart-title">[ DECISIONS ] — fleet management</div>
+      <p class="feature-desc" style="margin-bottom:10px">Decision matrix scatter (TPS vs Score, colored by recommendation). REVIEW/REMOVE candidates table with decision reasons. Error log. Embedding model table.</p>
+    </div>
+  </div>
+
+</section>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- QUICK START                                                               -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<section class="section" id="tab-setup">
+  <div class="sec-title">▸ INSTALLATION</div>
+
+  <div class="g2">
+    <div>
+      <div class="chart-title mb">1 · CLONE &amp; INSTALL DEPENDENCIES</div>
+      <div class="terminal">
+        <div><span class="prompt">$</span> <span class="cmd">git clone https://github.com/your-username/ollama_benchmark</span></div>
+        <div><span class="prompt">$</span> <span class="cmd">cd ollama_benchmark</span></div>
+        <div><span class="prompt">$</span> <span class="cmd">pip install -r requirements.txt --break-system-packages</span></div>
+        <div class="cmt"># On Jetson with system Python use --break-system-packages</div>
+      </div>
+
+      <div class="chart-title mb mt">2 · (OPTIONAL) JETSON HARDWARE MONITORING</div>
+      <div class="terminal">
+        <div><span class="prompt">$</span> <span class="cmd">sudo pip install -U jetson-stats --break-system-packages</span></div>
+        <div class="cmt"># Requires restart after install</div>
+        <div class="cmt"># Without jtop, simulation mode activates automatically</div>
+      </div>
+
+      <div class="chart-title mb mt">3 · (OPTIONAL) ADD A VISION TEST IMAGE</div>
+      <div class="terminal">
+        <div><span class="prompt">$</span> <span class="cmd">cp your_image.jpg assets/test_image.jpg</span></div>
+        <div class="cmt"># Required for VISION model benchmarking</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="chart-title mb">4 · VERIFY ENVIRONMENT</div>
+      <div class="terminal">
+        <div><span class="prompt">$</span> <span class="cmd">python3 main.py --check</span></div>
+        <div class="out"></div>
+        <div class="out">  Component        Status    Detail</div>
+        <div class="out">  ────────────────────────────────────────</div>
+        <div class="ok">  Ollama API       ✓ alive   http://localhost:11434</div>
+        <div class="ok">  Models           ✓ 11      installed</div>
+        <div class="ok">  jtop             ✓ 4.2.8   jetson-stats</div>
+        <div class="ok">  Root             ✓         drop_caches enabled</div>
+        <div class="ok">  Assets dir       ✓         assets/test_image.jpg</div>
+        <div class="ok">  RAM available    ✓         54.2 GB</div>
+        <div class="ok">  Disk free        ✓         312.4 GB</div>
+      </div>
+
+      <div class="chart-title mb mt">5 · RUN</div>
+      <div class="terminal">
+        <div><span class="prompt">$</span> <span class="cmd">sudo python3 main.py</span>               <span class="cmt"># full benchmark</span></div>
+        <div><span class="prompt">$</span> <span class="cmd">python3 main.py --simulate</span>         <span class="cmt"># no Jetson / no root</span></div>
+        <div><span class="prompt">$</span> <span class="cmd">python3 main.py --filter CODE,MATH</span> <span class="cmt"># target categories</span></div>
+        <div><span class="prompt">$</span> <span class="cmd">python3 main.py --models qwen,phi4</span> <span class="cmt"># target models</span></div>
+        <div><span class="prompt">$</span> <span class="cmd">python3 regen_dashboard.py --open</span>  <span class="cmt"># regen HTML &amp; open</span></div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="sep">
+  <div class="sec-title">▸ COMMAND REFERENCE</div>
+
+  <div class="tbl-wrap">
+    <table class="data-table">
+      <thead><tr><th>Option</th><th>Description</th><th>Example</th></tr></thead>
+      <tbody>
+        <tr><td class="dim">(none)</td><td>Full benchmark with interactive confirmation</td><td class="neon">python3 main.py</td></tr>
+        <tr><td>--simulate</td><td>Synthetic hardware — no Jetson / no root needed</td><td>python3 main.py --simulate</td></tr>
+        <tr><td>--yes / -y</td><td>Skip all confirmations</td><td>python3 main.py -y</td></tr>
+        <tr><td>--no-resume</td><td>Ignore checkpoint, start from scratch</td><td>python3 main.py --no-resume</td></tr>
+        <tr><td class="cyan">--filter CATS</td><td>Only benchmark specific categories</td><td>--filter CODE,MATH,REASONING</td></tr>
+        <tr><td class="cyan">--models TERMS</td><td>Only models whose name contains these terms</td><td>--models qwen,phi4,llama3.2</td></tr>
+        <tr><td>--runs N</td><td>Override NUM_RUNS (default: 3)</td><td>--runs 5</td></tr>
+        <tr><td>--timeout N</td><td>Override per-inference timeout (seconds)</td><td>--timeout 600</td></tr>
+        <tr><td>--check</td><td>Verify environment without running benchmark</td><td>python3 main.py --check</td></tr>
+        <tr><td>--dashboard-only</td><td>Regenerate HTML from existing CSV</td><td>python3 main.py --dashboard-only</td></tr>
+        <tr><td>--analyze</td><td>Print stats table to console</td><td>python3 main.py --analyze</td></tr>
+        <tr><td>--shutdown</td><td>Auto-shutdown 5 minutes after completion</td><td>python3 main.py --shutdown</td></tr>
+        <tr><td>--open-browser</td><td>Open dashboard in browser when done</td><td>python3 main.py --open-browser</td></tr>
+        <tr><td class="ambr">--csv PATH</td><td>Custom CSV output path</td><td>--csv results/run01.csv</td></tr>
+        <tr><td class="ambr">--output-html PATH</td><td>Custom dashboard HTML path</td><td>--output-html reports/run01.html</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <hr class="sep">
+  <div class="sec-title">▸ REQUIREMENTS</div>
+  <div class="g2">
+    <div class="terminal">
+      <div class="out"># requirements.txt</div>
+      <div><span class="cmd">requests&gt;=2.31.0</span>    <span class="cmt"># Ollama API HTTP client</span></div>
+      <div><span class="cmd">rich&gt;=13.7.0</span>        <span class="cmt"># Terminal dashboard (Live)</span></div>
+      <div><span class="cmd">plotly&gt;=5.18.0</span>      <span class="cmt"># HTML dashboard charts</span></div>
+      <div><span class="cmd">pandas&gt;=2.0.0</span>       <span class="cmt"># CSV management + data ops</span></div>
+      <div><span class="cmd">numpy&gt;=1.24.0</span>       <span class="cmt"># Statistical calculations</span></div>
+    </div>
+    <div class="chart-box">
+      <div class="chart-title">MINIMUM REQUIREMENTS</div>
+      <table class="data-table">
+        <tbody>
+          <tr><td class="cyan">Python</td><td>3.10+</td></tr>
+          <tr><td class="cyan">Ollama</td><td>0.1.30+ (running via <code>ollama serve</code>)</td></tr>
+          <tr><td>jetson-stats</td><td>4.2+ (Jetson only, optional)</td></tr>
+          <tr><td>RAM</td><td>16 GB+ available for suite + Ollama</td></tr>
+          <tr><td>Platform</td><td>Linux (Jetson recommended, any x86_64 with --simulate)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</section>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- DOCS                                                                      -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<section class="section" id="tab-docs">
+  <div class="sec-title">▸ DOCUMENTATION INDEX</div>
+
+  <div class="g2">
+    <a href="docs/architecture.html" style="text-decoration:none" target="_blank">
+      <div class="feature-card" style="cursor:pointer">
+        <div class="feature-icon">🏗️</div>
+        <div class="feature-title">Architecture Reference</div>
+        <div class="feature-desc">MVC design, module descriptions, key design decisions — why two scoring passes, why streaming, why atomic checkpoints.</div>
+      </div>
+    </a>
+    <a href="docs/configuration.html" style="text-decoration:none" target="_blank">
+      <div class="feature-card" style="cursor:pointer">
+        <div class="feature-icon">⚙️</div>
+        <div class="feature-title">Configuration Reference</div>
+        <div class="feature-desc">Full <code>config.py</code> parameter reference — Ollama API, benchmark rigor, scoring weights, minimum TPS thresholds, prompt sets, file paths.</div>
+      </div>
+    </a>
+    <a href="docs/scoring-system.html" style="text-decoration:none" target="_blank">
+      <div class="feature-card" style="cursor:pointer">
+        <div class="feature-icon">🎯</div>
+        <div class="feature-title">Scoring System</div>
+        <div class="feature-desc">Detailed breakdown of all 6 score factors, recommendation decision tree, how to tune thresholds for your hardware and use case.</div>
+      </div>
+    </a>
+    <a href="docs/dashboard-guide.html" style="text-decoration:none" target="_blank">
+      <div class="feature-card" style="cursor:pointer">
+        <div class="feature-icon">🌐</div>
+        <div class="feature-title">Dashboard Guide</div>
+        <div class="feature-desc">Tab-by-tab guide to reading the cyberpunk HTML dashboard. How to interpret each chart, what to look for in the decision matrix, exporting and sharing.</div>
+      </div>
+    </a>
+    <a href="docs/hardware-monitoring.html" style="text-decoration:none" target="_blank">
+      <div class="feature-card" style="cursor:pointer">
+        <div class="feature-icon">🔋</div>
+        <div class="feature-title">Hardware Monitoring</div>
+        <div class="feature-desc">jtop integration, Jetson AGX Orin power rail architecture (VDD_GPU_SOC / VDD_CPU_CV / VIN_SYS_5V0), simulation mode, hardware window averaging.</div>
+      </div>
+    </a>
+    <a href="README.html" style="text-decoration:none" target="_blank">
+      <div class="feature-card" style="cursor:pointer">
+        <div class="feature-icon">📄</div>
+        <div class="feature-title">README</div>
+        <div class="feature-desc">Project overview, quick start, command reference, CSV column reference, troubleshooting guide, and result interpretation guidelines.</div>
+      </div>
+    </a>
+  </div>
+
+  <hr class="sep">
+  <div class="sec-title">▸ PROJECT STRUCTURE</div>
+
+  <div class="terminal">
+    <div class="out">ollama_benchmark/</div>
+    <div><span class="cmd">├── main.py</span>                          <span class="cmt"># CLI entry point</span></div>
+    <div><span class="cmd">├── config.py</span>                        <span class="cmt"># All configuration ← edit here</span></div>
+    <div><span class="cmd">├── regen_dashboard.py</span>               <span class="cmt"># Regenerate HTML without re-running</span></div>
+    <div><span class="cmd">├── requirements.txt</span></div>
+    <div><span class="cmd">├── index.html</span>                       <span class="cmt"># ← this page (GH Pages)</span></div>
+    <div><span class="out">│</span></div>
+    <div><span class="cyan">├── models/</span></div>
+    <div><span class="cmd">│   ├── data_model.py</span>                <span class="cmt"># BenchmarkResult · RunStat · CSVManager</span></div>
+    <div><span class="cmd">│   ├── ollama_model.py</span>              <span class="cmt"># OllamaClient — REST API wrapper</span></div>
+    <div><span class="cmd">│   └── hardware_model.py</span>            <span class="cmt"># HardwareMonitor — jtop + simulation</span></div>
+    <div><span class="out">│</span></div>
+    <div><span class="pink">├── views/</span></div>
+    <div><span class="cmd">│   ├── terminal_view.py</span>             <span class="cmt"># Rich Live 6-panel · 2Hz</span></div>
+    <div><span class="cmd">│   └── dashboard_view.py</span>            <span class="cmt"># 16 Plotly charts · cyberpunk HTML</span></div>
+    <div><span class="out">│</span></div>
+    <div><span class="ambr">├── controllers/</span></div>
+    <div><span class="cmd">│   └── benchmark_controller.py</span>      <span class="cmt"># MVC orchestrator</span></div>
+    <div><span class="out">│</span></div>
+    <div><span class="dim">├── utils/</span></div>
+    <div><span class="cmd">│   ├── checkpoint.py</span>                <span class="cmt"># Atomic JSON checkpoint + resume</span></div>
+    <div><span class="cmd">│   ├── logger.py</span>                    <span class="cmt"># Semantic levels: PERF THERMAL POWER…</span></div>
+    <div><span class="cmd">│   └── system_utils.py</span>              <span class="cmt"># drop_caches · shutdown · env_check</span></div>
+    <div><span class="out">│</span></div>
+    <div><span class="cmd">├── assets/</span>                          <span class="cmt"># test_image.jpg for VISION models</span></div>
+    <div><span class="cmd">├── docs/</span>                            <span class="cmt"># Full documentation</span></div>
+    <div><span class="cmd">├── reports/</span>                         <span class="cmt"># dashboard.html output</span></div>
+    <div><span class="cmd">└── checkpoints/</span>                     <span class="cmt"># benchmark_state.json</span></div>
+  </div>
+
+  <hr class="sep">
+  <div class="sec-title">▸ LICENSE &amp; CREDITS</div>
+  <p class="text-block">
+    MIT License — free for personal, academic, and commercial use.<br>
+    Built for the <b>NVIDIA Jetson AGX Orin</b> edge AI platform.<br>
+    Powered by <b style="color:var(--neon)">Ollama</b>, <b style="color:var(--cyan)">Plotly</b>, <b style="color:var(--pink)">Rich</b>, <b style="color:var(--ambr)">jetson-stats (jtop)</b>, and <b>IBM Plex Mono</b>.
+  </p>
+
+</section>
+
+
+<!-- ═══ TICKER ════════════════════════════════════════════════════════════════ -->
+<div class="ticker">
+  <div class="tick-dot"></div>
+  <span>OllamaVision Benchmark Suite v4.0</span>
+  <span>Edge AI · NVIDIA Jetson AGX Orin</span>
+  <span>MIT License</span>
+  <span>16 charts · 7 tabs · single HTML output</span>
+  <span class="ticker-spacer">github.com/sergio-usma/ollama-vision-benchmark-suite</span>
+</div>
+
+
+<script>
+// ── Tab navigation (identical to dashboard) ─────────────────────────────────
+function showTab(id, btn) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  if (btn) btn.classList.add('active');
+  // Animate bars in the newly visible section
+  animateBars();
+}
+
+// ── Animate CSS bar fills ────────────────────────────────────────────────────
+function animateBars() {
+  // Small delay so the section becomes visible first
+  requestAnimationFrame(() => {
+    document.querySelectorAll('.section.active .bar-fill').forEach(el => {
+      el.classList.remove('animated');
+      // Force reflow to restart animation
+      void el.offsetWidth;
+      el.classList.add('animated');
+    });
+    // Score weight bars
+    const weights = [
+      { id:'sw1', w:'35%' }, { id:'sw2', w:'25%' },
+      { id:'sw3', w:'15%' }, { id:'sw4', w:'10%' },
+      { id:'sw5', w:'10%' }, { id:'sw6', w:'5%'  },
+    ];
+    weights.forEach(({id, w}) => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.style.width = '0';
+        void el.offsetWidth;
+        el.style.transition = 'width 1s ease';
+        el.style.width = w;
+      }
+    });
+  });
+}
+
+// Run on initial load for the active tab
+window.addEventListener('load', () => {
+  setTimeout(animateBars, 200);
+});
+</script>
+</body>
+</html>
